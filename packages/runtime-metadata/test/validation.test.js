@@ -2,19 +2,43 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeRuntimeMetadata, validateRuntimeMetadata } = require('../src/validation');
+const {
+  normalizeRuntimeMetadata,
+  validateRuntimeMetadata
+} = require('../src/validation');
 
-test('accepts valid metadata', () => {
-  const n = normalizeRuntimeMetadata({ operation:'health_check', marker:'TCC-T12' });
-  assert.equal(validateRuntimeMetadata(n), true);
+test('accepts valid T13 metadata', () => {
+  const m = normalizeRuntimeMetadata({
+    operation: 'system_diagnostics',
+    endpoint: 'http://192.168.56.101:4444/collect',
+    marker: 'TCC-T13'
+  });
+  assert.equal(validateRuntimeMetadata(m), true);
 });
 
-test('rejects missing operation', () => {
-  const n = normalizeRuntimeMetadata({ marker:'TCC-T12' });
-  assert.throws(() => validateRuntimeMetadata(n), /Missing operation/);
+test('rejects invalid operation', () => {
+  const m = normalizeRuntimeMetadata({
+    operation: 'Bad Operation',
+    endpoint: 'http://192.168.56.101:4444/collect',
+    marker: 'TCC-T13'
+  });
+  assert.throws(() => validateRuntimeMetadata(m), /Invalid operation/);
 });
 
-test('rejects missing marker', () => {
-  const n = normalizeRuntimeMetadata({ operation:'health_check' });
-  assert.throws(() => validateRuntimeMetadata(n), /Missing marker/);
+test('rejects oversized endpoint', () => {
+  const m = normalizeRuntimeMetadata({
+    operation: 'system_diagnostics',
+    endpoint: 'x'.repeat(321),
+    marker: 'TCC-T13'
+  });
+  assert.throws(() => validateRuntimeMetadata(m), /Invalid endpoint/);
+});
+
+test('rejects invalid marker', () => {
+  const m = normalizeRuntimeMetadata({
+    operation: 'system_diagnostics',
+    endpoint: 'http://192.168.56.101:4444/collect',
+    marker: 'bad marker with spaces'
+  });
+  assert.throws(() => validateRuntimeMetadata(m), /Invalid marker/);
 });

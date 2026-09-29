@@ -1,8 +1,9 @@
-﻿node_modules/
-t11_result.txt
-
-
-t12_result.txt
+node_modules/
 evidence/
-T12_dump.txt
-T12_start.txt
+T13_dump.txt
+T13_start.txt
+T13_run_id.txt
+T13_encoder_output.txt
+t13_result.json
+payloads/
+*.zip

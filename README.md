@@ -1,7 +1,16 @@
-# T11 demo app
+# TCC CIGE â€” SÃ©rie experimental Unicode / CI-CD
 
-Baseline da aplicação usada no ensaio.
+EvoluÃ§Ã£o T11 â†’ T12 â†’ T13.
 
-A dependência `@tcc/runtime-metadata` deve estar presente antes da criação da branch experimental. O PR do T11 deve alterar apenas `src/runtime-config.js`.
+- T11: separaÃ§Ã£o inicial entre runtime metadata e gatilho experimental.
+- T12: dispatcher controlado, timeout, mÃ©tricas e callback de identidade.
+- T13: baseline de telemetria auditÃ¡vel usando APIs nativas Node.js.
 
-Este pacote não contém executor de rede nem shell; ele serve para validar a separação entre baseline, biblioteca preexistente e entrada Unicode introduzida posteriormente.
+No T13, o commit experimental altera somente `src/runtime-config.js`.
+`operation`, `endpoint` e `marker` sÃ£o reconstruÃ­dos a partir de Unicode
+Variation Selectors.
+
+O SHA-256 Ã© usado como evidÃªncia de integridade entre referÃªncia e
+reconstruÃ§Ã£o, nÃ£o como autorizaÃ§Ã£o hardcoded da baseline.
+
+Consulte `docs/THREAT_MODEL.md`.

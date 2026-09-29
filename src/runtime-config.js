@@ -6,6 +6,6 @@ const DEFAULTS = Object.freeze({
   telemetry: false
 });
 
-// build: v2.4.0
+// build: v3.0.0 ðŸ”§
 
 module.exports = { DEFAULTS };

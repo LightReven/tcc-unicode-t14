@@ -1,0 +1,56 @@
+name: T13 Runtime Validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  runtime-validation:
+    if: github.ref != 'refs/heads/main'
+    runs-on: [self-hosted, windows, x64, t13]
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Runtime versions
+        shell: powershell
+        run: |
+          node --version
+          npm --version
+          whoami
+
+      - name: Install
+        shell: powershell
+        run: npm ci
+
+      - name: Tests
+        shell: powershell
+        run: npm test
+
+      - name: Syntax validation
+        shell: powershell
+        run: npm run check
+
+      - name: Defender status
+        shell: powershell
+        run: |
+          Get-MpComputerStatus | Select-Object AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,NISEnabled,AntivirusSignatureVersion,AntivirusSignatureLastUpdated,AMRunningMode
+
+      - name: T13 runtime
+        shell: powershell
+        run: node .\app.js
+
+      - name: Evidence
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path .\t13_result.json) { Get-Content .\t13_result.json }
+
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: t13-evidence
+          path: t13_result.json
+          if-no-files-found: warn

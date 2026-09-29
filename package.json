@@ -4,8 +4,10 @@
     "private":  true,
     "type":  "commonjs",
     "scripts":  {
-                    "check":  "node --check app.js \u0026\u0026 node --check src/runtime-config.js \u0026\u0026 node --check src/executor.js \u0026\u0026 node --check scripts/fingerprint.js",
+                    "check":  "node --check app.js \u0026\u0026 node --check src/runtime-config.js \u0026\u0026 node --check src/telemetry.js \u0026\u0026 node --check scripts/fingerprint.js \u0026\u0026 node --check tools/encoder.js",
                     "metadata":  "node app.js",
+                    "test":  "npm --prefix packages/runtime-metadata test \u0026\u0026 node --test src/telemetry.test.js",
+                    "encode":  "node tools/encoder.js",
                     "fingerprint":  "node scripts/fingerprint.js"
                 },
     "dependencies":  {

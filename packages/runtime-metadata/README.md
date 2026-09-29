@@ -1,14 +1,7 @@
 # @tcc/runtime-metadata
 
-Biblioteca de pesquisa para leitura, normalização e validação de metadados de runtime.
+Biblioteca auditÃ¡vel para leitura, reconstruÃ§Ã£o, normalizaÃ§Ã£o e
+validaÃ§Ã£o de runtime metadata representado por Unicode Variation
+Selectors.
 
-## Escopo
-
-- leitura de metadados estruturados;
-- representação por seletores de variação Unicode;
-- normalização e validação;
-- nenhuma execução dinâmica de código;
-- nenhuma função de rede;
-- API pública: `readRuntimeMetadata()` e `decodeRuntimeMetadata()`.
-
-A implementação é deliberadamente auditável para separar a capacidade preexistente da baseline do conteúdo introduzido posteriormente no T11.
+A biblioteca nÃ£o executa comandos e nÃ£o possui funÃ§Ã£o de rede.
