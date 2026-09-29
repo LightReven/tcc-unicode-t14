@@ -1,14 +1,15 @@
-﻿{
+{
     "name":  "tcc-unicode-demo-app",
     "version":  "1.0.0",
     "private":  true,
     "type":  "commonjs",
     "scripts":  {
-                    "check":  "node --check app.js \u0026\u0026 node --check src/runtime-config.js \u0026\u0026 node --check src/telemetry.js \u0026\u0026 node --check scripts/fingerprint.js \u0026\u0026 node --check tools/encoder.js",
+                    "check":  "node --check app.js \u0026\u0026 node --check src/runtime-config.js \u0026\u0026 node --check src/telemetry.js \u0026\u0026 node --check scripts/fingerprint.js \u0026\u0026 node --check scripts/codepoints.js \u0026\u0026 node --check scripts/benchmark-decode.js",
                     "metadata":  "node app.js",
                     "test":  "npm --prefix packages/runtime-metadata test \u0026\u0026 node --test src/telemetry.test.js",
-                    "encode":  "node tools/encoder.js",
-                    "fingerprint":  "node scripts/fingerprint.js"
+                    "fingerprint":  "node scripts/fingerprint.js",
+                    "codepoints":  "node scripts/codepoints.js src/runtime-config.js",
+                    "benchmark":  "node scripts/benchmark-decode.js src/runtime-config.js --out t14_benchmark.json"
                 },
     "dependencies":  {
                          "@tcc/runtime-metadata":  "file:packages/runtime-metadata"

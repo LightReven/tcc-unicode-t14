@@ -11,14 +11,16 @@ const {
   executeMetadataAction
 } = require('./telemetry');
 
-test('isAllowedHost accepts canonical lab addresses', () => {
-  assert.equal(isAllowedHost('192.168.56.0'), true);
+test('isAllowedHost accepts canonical usable lab hosts', () => {
+  assert.equal(isAllowedHost('192.168.56.1'), true);
   assert.equal(isAllowedHost('192.168.56.101'), true);
-  assert.equal(isAllowedHost('192.168.56.255'), true);
+  assert.equal(isAllowedHost('192.168.56.254'), true);
 });
 
-test('isAllowedHost rejects malformed and non-lab addresses', () => {
+test('isAllowedHost rejects network, broadcast and malformed addresses', () => {
   for (const host of [
+    '192.168.56.0',
+    '192.168.56.255',
     '192.168.56.256',
     '192.168.56.999',
     '192.168.56.abc',
@@ -31,7 +33,7 @@ test('isAllowedHost rejects malformed and non-lab addresses', () => {
   }
 });
 
-test('normalizeEndpoint accepts an HTTP lab URL', () => {
+test('normalizeEndpoint accepts HTTP lab URL', () => {
   assert.deepEqual(
     normalizeEndpoint('http://192.168.56.101:4444/collect'),
     {
@@ -43,19 +45,70 @@ test('normalizeEndpoint accepts an HTTP lab URL', () => {
   );
 });
 
-test('normalizeEndpoint rejects credentials and other networks', () => {
+test('normalizeEndpoint accepts HTTPS lab URL', () => {
+  assert.deepEqual(
+    normalizeEndpoint('https://192.168.56.101:443/collect'),
+    {
+      protocol: 'https:',
+      hostname: '192.168.56.101',
+      port: 443,
+      path: '/collect'
+    }
+  );
+});
+
+test('normalizeEndpoint rejects unsupported protocols', () => {
   assert.throws(
-    () => normalizeEndpoint('http://user:pass@192.168.56.101:4444/'),
+    () => normalizeEndpoint('ftp://192.168.56.101/file'),
+    /unsupported endpoint protocol/
+  );
+
+  assert.throws(
+    () => normalizeEndpoint('file:///C:/test'),
+    /unsupported endpoint protocol|outside controlled lab/
+  );
+});
+
+test('normalizeEndpoint rejects malformed URL', () => {
+  assert.throws(
+    () => normalizeEndpoint('not-a-url'),
+    /not a valid URL/
+  );
+});
+
+test('normalizeEndpoint rejects credentials', () => {
+  assert.throws(
+    () => normalizeEndpoint(
+      'http://user:pass@192.168.56.101:4444/collect'
+    ),
     /credentials/
   );
+});
+
+test('normalizeEndpoint rejects targets outside lab subnet', () => {
   assert.throws(
     () => normalizeEndpoint('http://10.0.0.1:4444/collect'),
     /outside controlled lab network/
   );
 });
 
+test('normalizeEndpoint rejects port zero', () => {
+  assert.throws(
+    () => normalizeEndpoint('http://192.168.56.101:0/collect'),
+    /invalid endpoint port/
+  );
+});
+
+test('normalizeEndpoint rejects invalid high port', () => {
+  assert.throws(
+    () => normalizeEndpoint('http://192.168.56.101:99999/collect'),
+    /valid URL|invalid endpoint port/
+  );
+});
+
 test('collectDiagnostics returns expected fields', () => {
   const d = collectDiagnostics();
+
   for (const key of [
     'host',
     'platform',
@@ -69,15 +122,20 @@ test('collectDiagnostics returns expected fields', () => {
   }
 });
 
-test('system_diagnostics builds a POST without using real network', async () => {
+test('system_diagnostics builds POST without real network', async () => {
   let captured;
 
   function fakeRequestFactory(protocol, options, onResponse) {
     const req = new EventEmitter();
     const chunks = [];
 
-    req.write = (chunk) => chunks.push(Buffer.from(chunk));
-    req.destroy = () => req.emit('close');
+    req.write = (chunk) => {
+      chunks.push(Buffer.from(chunk));
+    };
+
+    req.destroy = () => {
+      req.emit('close');
+    };
 
     req.end = () => {
       captured = {
@@ -103,10 +161,11 @@ test('system_diagnostics builds a POST without using real network', async () => 
     {
       operation: 'system_diagnostics',
       endpoint: 'http://192.168.56.101:4444/collect',
-      marker: 'TCC-T13-TEST'
+      marker: 'TCC-T14-TEST'
     },
     {
       requestFactory: fakeRequestFactory,
+
       collectDiagnostics: () => ({
         host: 'runner-test',
         platform: 'win32',
@@ -116,6 +175,7 @@ test('system_diagnostics builds a POST without using real network', async () => 
         uptime: 1,
         timestamp: '2026-09-29T00:00:00.000Z'
       }),
+
       timeoutMs: 1000
     }
   );
@@ -126,6 +186,7 @@ test('system_diagnostics builds a POST without using real network', async () => 
   assert.equal(captured.options.path, '/collect');
 
   const body = JSON.parse(captured.body);
-  assert.equal(body.marker, 'TCC-T13-TEST');
+
+  assert.equal(body.marker, 'TCC-T14-TEST');
   assert.equal(body.diagnostics.user, 'lab-user');
 });

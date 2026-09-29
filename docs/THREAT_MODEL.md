@@ -25,3 +25,14 @@ conteúdo e contexto.
 Persistência, movimento lateral, execução arbitrária de comandos,
 coleta além do conjunto de diagnóstico definido e comprometimento
 clássico de dependência publicada.
+## T14 research harness boundary
+
+The Unicode encoder is not part of the target application baseline.
+It belongs exclusively to the external research harness.
+
+The experiment assumes that an actor has the ability to submit a
+source-code contribution. Credential theft and account takeover are
+outside scope.
+
+The scenario models compromise at the source contribution and
+integration stage of the software supply chain.

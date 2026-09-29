@@ -1,0 +1,257 @@
+name: T14 Runtime Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference_sha256:
+        description: Reference SHA256 produced by external research harness
+        required: true
+        type: string
+
+jobs:
+  runtime-validation:
+    if: github.ref != 'refs/heads/main'
+    runs-on: [self-hosted, windows, x64, t14]
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Experiment start
+        shell: powershell
+        run: |
+          Get-Date -Format o |
+            Out-File t14_started_at.txt -Encoding ascii
+
+      - name: Runtime versions
+        shell: powershell
+        run: |
+          node --version
+          npm --version
+          git --version
+          whoami
+          git log --oneline -5
+
+      - name: Install
+        shell: powershell
+        run: npm ci
+
+      - name: Tests
+        shell: powershell
+        run: npm test
+
+      - name: Syntax validation
+        shell: powershell
+        run: npm run check
+
+      - name: Canonical hexdump
+        if: always()
+        shell: powershell
+        run: |
+          Format-Hex -Path .\src\runtime-config.js |
+            Out-File t14_hexdump.txt -Encoding ascii
+
+      - name: Unicode code points
+        if: always()
+        shell: powershell
+        run: |
+          node .\scripts\codepoints.js .\src\runtime-config.js |
+            Out-File t14_codepoints.json -Encoding ascii
+
+      - name: Git evidence
+        if: always()
+        shell: powershell
+        run: |
+          git diff --numstat origin/main..HEAD |
+            Out-File t14_numstat.txt -Encoding ascii
+
+          git diff --check origin/main..HEAD |
+            Out-File t14_diff_check.txt -Encoding ascii
+
+          git log --oneline -10 |
+            Out-File t14_git_log.txt -Encoding ascii
+
+      - name: Defender status
+        shell: powershell
+        run: |
+          Get-MpComputerStatus |
+            Select-Object `
+              AMServiceEnabled,
+              AntivirusEnabled,
+              RealTimeProtectionEnabled,
+              BehaviorMonitorEnabled,
+              IoavProtectionEnabled,
+              NISEnabled,
+              AntivirusSignatureVersion,
+              AntivirusSignatureLastUpdated,
+              AMRunningMode |
+            Format-List |
+            Out-File t14_defender_status.txt -Encoding utf8
+
+      - name: T14 runtime
+        shell: powershell
+        run: node .\app.js
+
+      - name: Cleartext check
+        if: always()
+        shell: powershell
+        run: |
+          if (-not (Test-Path .\t14_result.json)) {
+            if (Test-Path .\t13_result.json) {
+              Copy-Item .\t13_result.json .\t14_result.json
+            }
+          }
+
+          if (-not (Test-Path .\t14_result.json)) {
+            Write-Host "::error::Runtime result missing"
+            exit 1
+          }
+
+          $result =
+            Get-Content .\t14_result.json -Raw |
+            ConvertFrom-Json
+
+          $raw = [IO.File]::ReadAllText(
+            (Resolve-Path '.\src\runtime-config.js'),
+            [Text.Encoding]::UTF8
+          )
+
+          $uri = [Uri]$result.metadata.endpoint
+
+          $terms = @(
+            [string]$result.metadata.operation,
+            [string]$result.metadata.endpoint,
+            [string]$result.metadata.marker,
+            [string]$uri.Host,
+            [string]$uri.Port
+          )
+
+          $rows = @()
+          $leaks = 0
+
+          foreach ($term in $terms) {
+            $present = $raw.Contains($term)
+
+            if ($present) {
+              $leaks++
+            }
+
+            $rows += "$term`t$present"
+          }
+
+          $rows += "TOTAL_CLEAR_TEXT_LEAKS`t$leaks"
+
+          [IO.File]::WriteAllLines(
+            't14_cleartext_check.txt',
+            $rows,
+            (New-Object Text.UTF8Encoding($false))
+          )
+
+      - name: Benchmark decoder
+        if: always()
+        shell: powershell
+        run: |
+          node .\scripts\benchmark-decode.js `
+            .\src\runtime-config.js `
+            --out t14_benchmark.json
+
+      - name: Reference vs reconstruction
+        if: always()
+        shell: powershell
+        run: |
+          if (-not (Test-Path .\t14_result.json)) {
+            Write-Host "::error::t14_result.json missing"
+            exit 1
+          }
+
+          $result =
+            Get-Content .\t14_result.json -Raw |
+            ConvertFrom-Json
+
+          $expected = '${{ inputs.reference_sha256 }}'
+          $actual = [string]$result.sha256
+          $match = $expected -eq $actual
+
+          $obj = [ordered]@{
+            reference_sha256 = $expected
+            reconstructed_sha256 = $actual
+            match = $match
+            compared_after_execution = $true
+          }
+
+          $json =
+            $obj |
+            ConvertTo-Json -Depth 5
+
+          [IO.File]::WriteAllText(
+            't14_integrity.json',
+            $json,
+            (New-Object Text.UTF8Encoding($false))
+          )
+
+          Write-Host "Reference SHA     : $expected"
+          Write-Host "Reconstructed SHA : $actual"
+          Write-Host "Match             : $match"
+
+          if (-not $match) {
+            Write-Host "::error::Reference SHA mismatch"
+            exit 1
+          }
+
+      - name: Defender detections
+        if: always()
+        shell: powershell
+        run: |
+          $start = [datetime](
+            Get-Content .\t14_started_at.txt -Raw
+          )
+
+          $detections = @(
+            Get-MpThreatDetection -ErrorAction SilentlyContinue |
+            Where-Object {
+              $_.InitialDetectionTime -ge $start
+            }
+          )
+
+          if ($detections.Count -eq 0) {
+            'DETECTIONS_IN_WINDOW=0' |
+              Out-File t14_defender_detections.txt -Encoding ascii
+          } else {
+            "DETECTIONS_IN_WINDOW=$($detections.Count)" |
+              Out-File t14_defender_detections.txt -Encoding ascii
+
+            $detections |
+              Select-Object `
+                InitialDetectionTime,
+                ThreatID,
+                ThreatStatusID,
+                Resources |
+              Format-List |
+              Out-File t14_defender_detections.txt `
+                -Append `
+                -Encoding utf8
+          }
+
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: t14-evidence
+          path: |
+            t14_started_at.txt
+            t14_result.json
+            t14_hexdump.txt
+            t14_codepoints.json
+            t14_numstat.txt
+            t14_diff_check.txt
+            t14_git_log.txt
+            t14_defender_status.txt
+            t14_defender_detections.txt
+            t14_cleartext_check.txt
+            t14_benchmark.json
+            t14_integrity.json
+            src/runtime-config.js
+          if-no-files-found: warn

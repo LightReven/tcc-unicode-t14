@@ -25,7 +25,7 @@ function fingerprint(metadata) {
 
 function writeEvidence(evidence) {
   fs.writeFileSync(
-    't13_result.json',
+    't14_result.json',
     JSON.stringify(evidence, null, 2) + '\n',
     'utf8'
   );
@@ -38,7 +38,7 @@ async function main() {
   const metadata = readRuntimeMetadata(target);
   const decodeMs = performance.now() - decodeStart;
 
-  console.log('=== T13 RUNTIME METADATA ===');
+  console.log('=== T14 RUNTIME METADATA ===');
 
   if (!metadata) {
     console.log('No metadata present.');
@@ -52,7 +52,7 @@ async function main() {
   console.log('Decode ms:', decodeMs.toFixed(3));
 
   const evidence = {
-    experiment: 'T13',
+    experiment: 'T14',
     status: 'pending',
     metadata,
     sha256,
@@ -74,7 +74,7 @@ async function main() {
     evidence.completed_at = new Date().toISOString();
     writeEvidence(evidence);
 
-    console.log('=== T13 RESULT ===');
+    console.log('=== T14 RESULT ===');
     console.log(JSON.stringify(evidence, null, 2));
   } catch (error) {
     const executionMs = performance.now() - execStart;
@@ -90,6 +90,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[T13-ERROR]', error.message);
+  console.error('[T14-ERROR]', error.message);
   process.exit(1);
 });

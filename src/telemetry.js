@@ -13,7 +13,7 @@ function isAllowedHost(host) {
   const match = LAB_NET.exec(host);
   if (!match) return false;
   const last = Number(match[1]);
-  return last >= 0 && last <= 255;
+  return last >= 1 && last <= 254;
 }
 
 function normalizeEndpoint(endpoint) {
