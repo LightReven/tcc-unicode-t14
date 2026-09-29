@@ -31,7 +31,7 @@ test('decodes structured runtime metadata', () => {
 });
 
 test('returns null when selectors are absent', () => {
-  assert.equal(decodeRuntimeMetadata('// build: v3.0.0 ðŸ”§'), null);
+  assert.equal(decodeRuntimeMetadata('// build: v3.0.0 🔧'), null);
 });
 
 test('rejects malformed JSON metadata', () => {

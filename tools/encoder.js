@@ -6,8 +6,8 @@ const crypto = require('crypto');
 const os = require('os');
 const { URL } = require('url');
 
-const BASELINE_ANCHOR = '// build: v3.0.0 ðŸ”§';
-const EXPERIMENT_ANCHOR = '// build: v3.0.1 ðŸ”§';
+const BASELINE_ANCHOR = '// build: v3.0.0 🔧';
+const EXPERIMENT_ANCHOR = '// build: v3.0.1 🔧';
 const LAB_NET = /^192\.168\.56\.(\d{1,3})$/;
 
 function isAllowedEndpoint(endpoint) {
