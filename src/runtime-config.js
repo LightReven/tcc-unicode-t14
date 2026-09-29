@@ -6,6 +6,6 @@ const DEFAULTS = Object.freeze({
   telemetry: false
 });
 
-// build-tag: A
+// build: v2.4.0
 
 module.exports = { DEFAULTS };

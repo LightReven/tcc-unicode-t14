@@ -1,0 +1,45 @@
+name: T12 Runtime Validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  runtime-validation:
+    if: github.ref != 'refs/heads/main'
+    runs-on: [self-hosted, windows, x64]
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install
+        shell: powershell
+        run: npm ci
+
+      - name: Library tests
+        shell: powershell
+        run: npm --prefix .\packages\runtime-metadata test
+
+      - name: Syntax validation
+        shell: powershell
+        run: npm run check
+
+      - name: Defender status
+        shell: powershell
+        run: |
+          Get-MpComputerStatus | Select-Object AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,NISEnabled,AntivirusSignatureVersion,AMRunningMode
+
+      - name: T12 runtime
+        shell: powershell
+        run: node .\app.js
+
+      - name: Evidence
+        shell: powershell
+        run: Get-Content .\t12_result.txt
+
+      - name: Preserve evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: t12-evidence
+          path: t12_result.txt

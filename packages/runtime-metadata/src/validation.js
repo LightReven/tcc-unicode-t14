@@ -6,23 +6,21 @@ function normalizeRuntimeMetadata(input) {
   }
 
   return {
-    operation: String(input.operation || ''),
-    transport: String(input.transport || ''),
-    host: String(input.host || ''),
-    port: Number(input.port || 0),
-    request: String(input.request || ''),
-    marker: String(input.marker || '')
+    operation: String(input.operation ?? ''),
+    endpoint: String(input.endpoint ?? ''),
+    marker: String(input.marker ?? ''),
+    value: String(input.value ?? '')
   };
 }
 
 function validateRuntimeMetadata(metadata) {
   if (!metadata.operation) throw new Error('Missing operation');
-  if (!metadata.transport) throw new Error('Missing transport');
   if (!metadata.marker) throw new Error('Missing marker');
-  if (metadata.host && metadata.host.length > 255) throw new Error('Invalid host');
-  if (metadata.port && (!Number.isInteger(metadata.port) || metadata.port < 1 || metadata.port > 65535)) {
-    throw new Error('Invalid port');
+
+  if (metadata.endpoint && metadata.endpoint.length > 320) {
+    throw new Error('Invalid endpoint');
   }
+
   return true;
 }
 
