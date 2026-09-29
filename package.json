@@ -1,0 +1,13 @@
+﻿{
+    "name":  "tcc-unicode-demo-app",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "commonjs",
+    "scripts":  {
+                    "check":  "node --check app.js \u0026\u0026 node --check src/runtime-config.js \u0026\u0026 node --check src/executor.js",
+                    "metadata":  "node app.js"
+                },
+    "dependencies":  {
+                         "@tcc/runtime-metadata":  "file:packages/runtime-metadata"
+                     }
+}
