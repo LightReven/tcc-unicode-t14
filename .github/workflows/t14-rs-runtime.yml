@@ -1,0 +1,178 @@
+name: T14-RS Runtime Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference_sha256:
+        description: Reference SHA256 produced by external T14-RS encoder
+        required: true
+        type: string
+      expected_vs:
+        description: Expected number of Variation Selectors
+        required: true
+        default: "226"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-validation:
+    if: github.ref != 'refs/heads/main'
+    runs-on: [self-hosted, windows, x64, t14]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Experiment start
+        shell: powershell
+        run: |
+          Get-Date -Format o |
+            Out-File t14_rs_started_at.txt -Encoding ascii
+
+          git rev-parse HEAD |
+            Out-File t14_rs_commit.txt -Encoding ascii
+
+      - name: Runtime versions
+        shell: powershell
+        run: |
+          node --version
+          npm --version
+          git --version
+          whoami
+          git log --oneline -5
+
+      - name: Install
+        shell: powershell
+        run: npm ci
+
+      - name: Tests
+        shell: powershell
+        run: npm test
+
+      - name: Syntax validation
+        shell: powershell
+        run: |
+          npm run check
+          node --check .\app.js
+          node --check .\src\diagnostic-channel.js
+          node --check .\packages\runtime-metadata\src\session-reader.js
+
+      - name: Git experimental boundary
+        shell: powershell
+        run: |
+          $baseline = "t14-rs-ci-baseline-v1"
+
+          git rev-parse "$baseline^{commit}" |
+            Out-File t14_rs_baseline_commit.txt -Encoding ascii
+
+          $changed = @(
+            git diff --name-only "$baseline..HEAD"
+          )
+
+          $changed |
+            Out-File t14_rs_changed_files.txt -Encoding ascii
+
+          git diff --numstat "$baseline..HEAD" |
+            Out-File t14_rs_numstat.txt -Encoding ascii
+
+          git diff --check "$baseline..HEAD" |
+            Out-File t14_rs_diff_check.txt -Encoding ascii
+
+          if (
+            $changed.Count -ne 1 -or
+            $changed[0] -ne "src/runtime-config.js"
+          ) {
+            throw "Experimental boundary violated: expected only src/runtime-config.js"
+          }
+
+          Write-Host "EXPERIMENTAL_BOUNDARY=OK"
+
+      - name: Variation Selector evidence
+        shell: powershell
+        env:
+          EXPECTED_VS: ${{ inputs.expected_vs }}
+        run: |
+          node -e "const fs=require('fs');const s=fs.readFileSync('src/runtime-config.js','utf8');let basic=0,supp=0;for(const c of s){const x=c.codePointAt(0);if(x>=0xFE00&&x<=0xFE0F)basic++;else if(x>=0xE0100&&x<=0xE01EF)supp++;}const r={basic_vs:basic,supplement_vs:supp,total:basic+supp};fs.writeFileSync('t14_rs_vs.json',JSON.stringify(r,null,2)+'\n');console.log(r);if(r.total!==Number(process.env.EXPECTED_VS))throw new Error('unexpected Variation Selector count');"
+
+      - name: Visible representation equivalence
+        shell: powershell
+        run: |
+          node -e "const fs=require('fs'),cp=require('child_process');const cur=fs.readFileSync('src/runtime-config.js','utf8');const base=cp.execFileSync('git',['show','t14-rs-ci-baseline-v1:src/runtime-config.js'],{encoding:'utf8'});const strip=s=>{let o='';for(const c of s.replace(/\r\n/g,'\n')){const x=c.codePointAt(0);if(!((x>=0xFE00&&x<=0xFE0F)||(x>=0xE0100&&x<=0xE01EF)))o+=c;}return o};const ok=strip(cur)===strip(base);fs.writeFileSync('t14_rs_visible_equivalence.txt','VISIBLE_EQUIVALENCE='+ok+'\n');console.log('VISIBLE_EQUIVALENCE='+ok);if(!ok)throw new Error('non-VS content differs from baseline');"
+
+      - name: Reconstruct and verify payload
+        shell: powershell
+        env:
+          REFERENCE_SHA256: ${{ inputs.reference_sha256 }}
+        run: |
+          node -e "const fs=require('fs'),crypto=require('crypto');const m=require('@tcc/runtime-metadata');const source=fs.readFileSync('src/runtime-config.js','utf8');const raw=m.extractMetadataBytes(source);const sha=crypto.createHash('sha256').update(raw).digest('hex').toUpperCase();const spec=m.decodeSessionSpec(source);const evidence={bytes:raw.length,sha256:sha,reference_sha256:process.env.REFERENCE_SHA256.toUpperCase(),match:sha===process.env.REFERENCE_SHA256.toUpperCase(),metadata:spec};fs.writeFileSync('t14_rs_reconstruction.json',JSON.stringify(evidence,null,2)+'\n');fs.writeFileSync('t14_rs_reconstructed_payload.json',raw);console.log('RECONSTRUCTED_BYTES='+raw.length);console.log('RECONSTRUCTED_SHA256='+sha);console.log('REFERENCE_SHA256='+process.env.REFERENCE_SHA256.toUpperCase());console.log('SHA_MATCH='+evidence.match);if(!evidence.match)throw new Error('SHA256 mismatch');"
+
+      - name: Defender status
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Get-MpComputerStatus |
+            Select-Object AMServiceEnabled,
+                          AntivirusEnabled,
+                          RealTimeProtectionEnabled,
+                          BehaviorMonitorEnabled,
+                          AntivirusSignatureVersion |
+            ConvertTo-Json |
+            Out-File t14_rs_defender_status.json -Encoding utf8
+
+      - name: T14-RS runtime
+        shell: powershell
+        run: |
+          Write-Host "Starting T14-RS runtime."
+          Write-Host "The Kali listener must already be active."
+          node .\app.js
+
+      - name: Runtime result
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path .\t14_rs_result.json) {
+            Get-Content .\t14_rs_result.json
+
+            (Get-FileHash .\t14_rs_result.json -Algorithm SHA256).Hash |
+              Out-File t14_rs_result_sha256.txt -Encoding ascii
+          } else {
+            "NO_RUNTIME_RESULT" |
+              Out-File t14_rs_result_sha256.txt -Encoding ascii
+          }
+
+      - name: Experiment end
+        if: always()
+        shell: powershell
+        run: |
+          Get-Date -Format o |
+            Out-File t14_rs_completed_at.txt -Encoding ascii
+
+          git status --short |
+            Out-File t14_rs_git_status.txt -Encoding ascii
+
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: t14-rs-evidence
+          path: |
+            t14_rs_started_at.txt
+            t14_rs_completed_at.txt
+            t14_rs_commit.txt
+            t14_rs_baseline_commit.txt
+            t14_rs_changed_files.txt
+            t14_rs_numstat.txt
+            t14_rs_diff_check.txt
+            t14_rs_vs.json
+            t14_rs_visible_equivalence.txt
+            t14_rs_reconstruction.json
+            t14_rs_reconstructed_payload.json
+            t14_rs_result.json
+            t14_rs_result_sha256.txt
+            t14_rs_defender_status.json
+            t14_rs_git_status.txt
