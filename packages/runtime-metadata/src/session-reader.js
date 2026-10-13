@@ -3,44 +3,49 @@
 const fs = require('fs');
 const { extractMetadataBytes } = require('./unicode');
 
+function plainObject(value) {
+  return value &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+      ? value
+      : {};
+}
+
 function normalizeSessionSpec(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new TypeError('session specification must be an object');
   }
 
-  const channel =
-    input.channel &&
-    typeof input.channel === 'object' &&
-    !Array.isArray(input.channel)
-      ? input.channel
-      : {};
-
-  const commands =
-    input.commands &&
-    typeof input.commands === 'object' &&
-    !Array.isArray(input.commands)
-      ? input.commands
-      : {};
+  const channel = plainObject(input.channel);
+  const commands = plainObject(input.commands);
+  const executables = plainObject(input.executables);
 
   const normalizedCommands = {};
+  const normalizedExecutables = {};
 
   for (const [label, opcode] of Object.entries(commands)) {
     normalizedCommands[String(label)] = Number(opcode);
+  }
+
+  for (const [opcode, executable] of Object.entries(executables)) {
+    normalizedExecutables[String(opcode)] = String(executable);
   }
 
   return {
     channel: {
       host: String(channel.host ?? ''),
       port: Number(channel.port),
-      timeout_ms: Number(channel.timeout_ms ?? 5000)
+      timeout_ms: Number(channel.timeout_ms ?? 60000)
     },
     marker: String(input.marker ?? ''),
-    commands: normalizedCommands
+    commands: normalizedCommands,
+    executables: normalizedExecutables
   };
 }
 
 function validateSessionSpec(spec) {
-  const match = /^192\.168\.56\.(\d{1,3})$/.exec(spec.channel.host);
+  const match =
+    /^192\.168\.56\.(\d{1,3})$/.exec(spec.channel.host);
 
   if (!match) {
     throw new Error('host outside controlled lab network');
@@ -78,8 +83,6 @@ function validateSessionSpec(spec) {
     throw new Error('invalid command map size');
   }
 
-  const used = new Set();
-
   for (const [label, opcode] of entries) {
     if (!/^[A-Za-z0-9._-]{1,32}$/.test(label)) {
       throw new Error('invalid command label');
@@ -89,11 +92,23 @@ function validateSessionSpec(spec) {
       throw new Error('invalid opcode');
     }
 
-    if (used.has(opcode)) {
-      throw new Error('duplicate opcode');
-    }
+    if (opcode !== 0) {
+      const executable = spec.executables[String(opcode)];
 
-    used.add(opcode);
+      if (
+        typeof executable !== 'string' ||
+        !/^[A-Za-z0-9._-]{1,64}\.exe$/i.test(executable)
+      ) {
+        throw new Error('invalid executable mapping');
+      }
+
+      if (
+        executable.includes('/') ||
+        executable.includes('\\')
+      ) {
+        throw new Error('executable path is not allowed');
+      }
+    }
   }
 
   return true;
@@ -102,9 +117,7 @@ function validateSessionSpec(spec) {
 function decodeSessionSpec(sourceText) {
   const raw = extractMetadataBytes(sourceText);
 
-  if (raw.length === 0) {
-    return null;
-  }
+  if (raw.length === 0) return null;
 
   let parsed;
 
@@ -115,7 +128,6 @@ function decodeSessionSpec(sourceText) {
   }
 
   const spec = normalizeSessionSpec(parsed);
-
   validateSessionSpec(spec);
 
   return spec;
