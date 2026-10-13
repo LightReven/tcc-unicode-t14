@@ -7,33 +7,55 @@ const LAB_NET = /^192\.168\.56\.(\d{1,3})$/;
 
 function allowedHost(host) {
   const match = LAB_NET.exec(String(host));
-
   if (!match) return false;
 
   const last = Number(match[1]);
 
-  return Number.isInteger(last) && last >= 1 && last <= 254;
+  return Number.isInteger(last) &&
+    last >= 1 &&
+    last <= 254;
 }
 
-function ipv4Summary() {
-  const result = [];
+function windowsIpConfig() {
+  const lines = [
+    '',
+    'Windows IP Configuration',
+    ''
+  ];
 
   for (const [name, interfaces] of Object.entries(os.networkInterfaces())) {
-    for (const item of interfaces || []) {
-      if (item.family === 'IPv4' && !item.internal) {
-        result.push(`${name}=${item.address}`);
+    const ipv4 = (interfaces || []).filter(
+      item => item.family === 'IPv4' && !item.internal
+    );
+
+    if (ipv4.length === 0) continue;
+
+    lines.push(`${name}:`);
+    lines.push('');
+
+    for (const item of ipv4) {
+      lines.push(
+        `   IPv4 Address. . . . . . . . . . . : ${item.address}`
+      );
+
+      if (item.netmask) {
+        lines.push(
+          `   Subnet Mask . . . . . . . . . . . : ${item.netmask}`
+        );
       }
     }
+
+    lines.push('');
   }
 
-  return result.join('; ');
+  return lines.join('\r\n');
 }
 
 const handlers = new Map([
   [1, () => os.userInfo().username],
   [2, () => os.hostname()],
   [3, () => process.cwd()],
-  [4, () => ipv4Summary()],
+  [4, () => windowsIpConfig()],
   [5, () => new Date().toISOString()]
 ]);
 
@@ -62,10 +84,6 @@ function executeSession(spec) {
     socket.setEncoding('utf8');
     socket.setTimeout(spec.channel.timeout_ms);
 
-    socket.on('connect', () => {
-      socket.write(`${spec.marker}\n`);
-    });
-
     socket.on('data', (chunk) => {
       buffer += chunk;
 
@@ -80,12 +98,14 @@ function executeSession(spec) {
         const opcode = spec.commands[label];
 
         if (!Number.isInteger(opcode)) {
-          socket.write(`[DENIED] ${label}\n`);
+          socket.write(
+            `'${label}' is not recognized as an internal or external command,\r\n` +
+            'operable program or batch file.\r\n'
+          );
           continue;
         }
 
         if (opcode === 0) {
-          socket.write('[CLOSED]\n');
           complete({ status: 'closed' });
           return;
         }
@@ -93,15 +113,18 @@ function executeSession(spec) {
         const handler = handlers.get(opcode);
 
         if (!handler) {
-          socket.write(`[DENIED] ${label}\n`);
+          socket.write(
+            `'${label}' is not recognized as an internal or external command,\r\n` +
+            'operable program or batch file.\r\n'
+          );
           continue;
         }
 
         try {
-          const result = String(handler()).replace(/\r?\n/g, ' ');
-          socket.write(`[RESULT] ${label}=${result}\n`);
-        } catch (error) {
-          socket.write(`[ERROR] ${label}\n`);
+          const result = String(handler());
+          socket.write(result + '\r\n');
+        } catch {
+          socket.write('The command could not be completed.\r\n');
         }
       }
     });
@@ -128,5 +151,5 @@ function executeSession(spec) {
 module.exports = {
   executeSession,
   allowedHost,
-  ipv4Summary
+  windowsIpConfig
 };

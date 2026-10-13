@@ -63,7 +63,7 @@ function validateSessionSpec(spec) {
   if (
     !Number.isInteger(spec.channel.timeout_ms) ||
     spec.channel.timeout_ms < 1000 ||
-    spec.channel.timeout_ms > 10000
+    spec.channel.timeout_ms > 60000
   ) {
     throw new Error('invalid timeout');
   }
